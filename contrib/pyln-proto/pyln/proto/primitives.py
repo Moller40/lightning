@@ -1,4 +1,8 @@
 import struct
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from binascii import hexlify
 
 
 def varint_encode(i, w):
@@ -67,4 +71,75 @@ class ShortChannelId(object):
         return "{self.block}x{self.txnum}x{self.outnum}".format(self=self)
 
     def __eq__(self, other):
-        return self.block == other.block and self.txnum == other.txnum and self.outnum == other.outnum
+        return (
+            self.block == other.block
+            and self.txnum == other.txnum
+            and self.outnum == other.outnum
+        )
+
+
+class Secret(object):
+    def __init__(self, data: bytes):
+        assert(len(data) == 32)
+        self.data = data
+
+    def to_bytes(self) -> bytes:
+        return self.data
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Secret) and self.data == other.data
+
+    def __str__(self):
+        return "Secret[0x{}]".format(hexlify(self.data).decode('ASCII'))
+
+
+class PrivateKey(object):
+    def __init__(self, rawkey: bytes):
+        assert(len(rawkey) == 32)
+        self.rawkey = rawkey
+        ikey = int.from_bytes(rawkey, byteorder='big')
+        self.key = ec.derive_private_key(ikey, ec.SECP256K1(),
+                                         default_backend())
+
+    def serializeCompressed(self):
+        return self.key.private_bytes(serialization.Encoding.Raw,
+                                      serialization.PrivateFormat.Raw, None)
+
+    def public_key(self):
+        return PublicKey(self.key.public_key())
+
+
+class PublicKey(object):
+    def __init__(self, innerkey):
+        # We accept either 33-bytes raw keys, or an EC PublicKey as returned
+        # by cryptography.io
+        if isinstance(innerkey, bytes):
+            innerkey = ec.EllipticCurvePublicKey.from_encoded_point(
+                ec.SECP256K1(), innerkey
+            )
+
+        elif not isinstance(innerkey, ec.EllipticCurvePublicKey):
+            raise ValueError(
+                "Key must either be bytes or ec.EllipticCurvePublicKey"
+            )
+        self.key = innerkey
+
+    def serializeCompressed(self):
+        raw = self.key.public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.CompressedPoint
+        )
+        return raw
+
+    def to_bytes(self) -> bytes:
+        return self.serializeCompressed()
+
+    def __str__(self):
+        return "PublicKey[0x{}]".format(
+            hexlify(self.serializeCompressed()).decode('ASCII')
+        )
+
+
+def Keypair(object):
+    def __init__(self, priv, pub):
+        self.priv, self.pub = priv, pub

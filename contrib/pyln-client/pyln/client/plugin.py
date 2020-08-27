@@ -47,7 +47,7 @@ class Method(object):
     def __init__(self, name: str, func: Callable[..., JSONType],
                  mtype: MethodType = MethodType.RPCMETHOD,
                  category: str = None, desc: str = None,
-                 long_desc: str = None, deprecated: bool=False):
+                 long_desc: str = None, deprecated: bool = False):
         self.name = name
         self.func = func
         self.mtype = mtype
